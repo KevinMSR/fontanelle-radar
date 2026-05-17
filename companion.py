@@ -810,7 +810,7 @@ if prompt:
         "content": response
     })
 
-    st.rerun()
+    
 
 # =========================================================
 # BUSINESS
