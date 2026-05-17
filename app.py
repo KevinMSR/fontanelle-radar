@@ -73,6 +73,34 @@ h1,h2,h3 { color:#f8fafc !important; text-shadow:0 0 18px rgba(34,211,238,.35); 
     border-radius:12px;
     color:#e5e7eb;
 }
+.stTabs [data-baseweb="tab"] {
+    background:rgba(15,23,42,.7);
+    border:1px solid rgba(34,211,238,.18);
+    border-radius:12px;
+    color:#e5e7eb;
+}
+
+input, textarea {
+    background: rgba(15,23,42,.95) !important;
+    color: #f8fafc !important;
+    border: 1px solid rgba(34,211,238,.55) !important;
+    border-radius: 14px !important;
+}
+
+input::placeholder, textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+div[data-baseweb="select"] * {
+    background-color: rgba(15,23,42,.95) !important;
+    color: #f8fafc !important;
+}
+
+div[data-testid="stTextInput"] label,
+div[data-testid="stSelectbox"] label {
+    color: #e5e7eb !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
