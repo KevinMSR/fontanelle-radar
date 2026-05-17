@@ -2,229 +2,298 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
+import requests
 
-# ===================== CONFIG =====================
+st.set_page_config(page_title="Stock Insight", page_icon="📈", layout="wide")
 
-st.set_page_config(
-    page_title="FØNTANELLE ∞ — European Market Radar",
-    layout="wide"
-)
+st.markdown("""
+<style>
+.stApp { background:#f8fafc; }
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg,#0f172a,#111827);
+}
+section[data-testid="stSidebar"] * { color:white !important; }
+.block-container { padding-top:2rem; max-width:1200px; }
+.card {
+    background:white;
+    border:1px solid #e5e7eb;
+    border-radius:18px;
+    padding:22px;
+    box-shadow:0 8px 28px rgba(15,23,42,.08);
+    margin-bottom:18px;
+}
+.kpi {
+    background:white;
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:18px;
+    box-shadow:0 6px 20px rgba(15,23,42,.06);
+}
+.kpi-title { color:#64748b; font-size:13px; font-weight:700; text-transform:uppercase; }
+.kpi-value { font-size:26px; font-weight:800; color:#0f172a; margin-top:6px; }
+.notice {
+    background:#ecfdf5;
+    border:1px solid #86efac;
+    color:#166534;
+    padding:14px 18px;
+    border-radius:14px;
+    margin-bottom:18px;
+}
+.tip {
+    background:#eff6ff;
+    border:1px solid #bfdbfe;
+    color:#1e40af;
+    padding:14px;
+    border-radius:14px;
+}
+.stock-button button {
+    background:linear-gradient(135deg,#6366f1,#8b5cf6) !important;
+    color:white !important;
+    border-radius:12px !important;
+    border:0 !important;
+    width:100%;
+    font-weight:700;
+}
+</style>
+""", unsafe_allow_html=True)
 
-st.title("🌌 FØNTANELLE ∞")
-st.subheader("European Market Radar")
-st.caption("Signal over noise.")
-st.markdown(f"**Dernière mise à jour : {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}**")
-
-# ===================== DATA =====================
-
-indices = {
-    "CAC 40": "^FCHI",
-    "Euro Stoxx 50": "^STOXX50E",
-    "DAX Allemagne": "^GDAXI",
-    "FTSE 100 UK": "^FTSE",
-    "IBEX 35 Espagne": "^IBEX"
+COMMON = {
+    "apple": "AAPL", "aapl": "AAPL",
+    "microsoft": "MSFT", "tesla": "TSLA",
+    "amazon": "AMZN", "google": "GOOGL",
+    "alphabet": "GOOGL", "meta": "META", "nvidia": "NVDA",
+    "lvmh": "MC.PA", "total": "TTE.PA", "airbus": "AIR.PA",
+    "bitcoin": "BTC-USD", "ethereum": "ETH-USD",
 }
 
-actions_eu = [
-    "AI.PA", "AIR.PA", "MC.PA", "OR.PA", "TTE.PA", "SAN.PA", "BNP.PA",
-    "CS.PA", "RMS.PA", "ASML.AS", "SIE.DE", "SU.PA", "DG.PA", "VIE.PA"
-]
+def yahoo_search(query):
+    try:
+        url = "https://query1.finance.yahoo.com/v1/finance/search"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, params={"q": query, "quotes_count": 6}, headers=headers, timeout=8)
+        data = r.json()
+        out = []
+        for q in data.get("quotes", []):
+            sym = q.get("symbol")
+            name = q.get("shortname") or q.get("longname") or sym
+            if sym:
+                out.append((sym, name))
+        return out
+    except Exception:
+        return []
 
-# ===================== SIDEBAR =====================
+def money(x):
+    try:
+        x = float(x)
+        if abs(x) >= 1_000_000_000_000:
+            return f"${x/1_000_000_000_000:.2f}T"
+        if abs(x) >= 1_000_000_000:
+            return f"${x/1_000_000_000:.2f}B"
+        if abs(x) >= 1_000_000:
+            return f"${x/1_000_000:.2f}M"
+        return f"${x:,.2f}"
+    except Exception:
+        return "N/D"
 
-st.sidebar.header("Options")
+def val(info, key):
+    v = info.get(key)
+    return "N/D" if v in [None, ""] else v
 
-periode = st.sidebar.selectbox(
-    "Période du graphique",
-    ["1d", "5d", "1mo", "3mo", "6mo", "1y"],
-    index=3
-)
+def french_description(info):
+    name = val(info, "longName")
+    sector = val(info, "sector")
+    industry = val(info, "industry")
+    country = val(info, "country")
+    employees = val(info, "fullTimeEmployees")
+    return f"""
+**{name}** est une entreprise basée principalement en **{country}**.  
+Elle évolue dans le secteur **{sector}**, avec une activité liée à **{industry}**.
 
-afficher_volume = st.sidebar.checkbox("Afficher le volume", value=True)
+Cette fiche donne une lecture simplifiée de l’entreprise : activité, prix, capitalisation, performance récente, ratios financiers et niveau de risque.
 
-# ===================== INDICES =====================
+**Employés :** {employees}
+"""
 
-st.header("📊 Indices européens")
+def recommendation(hist, info):
+    close = hist["Close"]
+    last = float(close.iloc[-1])
+    ma20 = float(close.tail(20).mean())
+    ma60 = float(close.tail(60).mean()) if len(close) >= 60 else ma20
+    perf = ((last - float(close.iloc[0])) / float(close.iloc[0])) * 100
+    vol = close.pct_change().std() * (252 ** 0.5) * 100
+    pe = info.get("trailingPE")
 
-cols = st.columns(len(indices))
+    score = 0
+    if last > ma20: score += 1
+    if last > ma60: score += 1
+    if perf > 5: score += 1
+    if vol < 35: score += 1
+    if pe and pe < 35: score += 1
 
-for i, (nom, ticker) in enumerate(indices.items()):
-    with cols[i]:
-        try:
-            data = yf.Ticker(ticker).history(period="2d")
+    if score >= 4:
+        avis = "profil intéressant à surveiller, avec une tendance plutôt constructive."
+    elif score >= 2:
+        avis = "profil neutre : l’action mérite une analyse complémentaire."
+    else:
+        avis = "profil risqué ou fragile : prudence avant toute décision."
 
-            if len(data) >= 2:
-                dernier = float(data["Close"].iloc[-1])
-                precedent = float(data["Close"].iloc[-2])
-                variation = ((dernier - precedent) / precedent) * 100
+    return f"""
+### Recommandation éducative : {avis}
 
-                st.metric(
-                    label=nom,
-                    value=f"{dernier:,.2f}",
-                    delta=f"{variation:+.2f}%"
-                )
-            else:
-                st.warning("Données insuffisantes")
+- Prix actuel : **${last:.2f}**
+- Moyenne 20 jours : **${ma20:.2f}**
+- Moyenne 60 jours : **${ma60:.2f}**
+- Performance 6 mois : **{perf:.2f}%**
+- Volatilité estimée : **{vol:.2f}%**
 
-        except Exception:
-            st.error(f"Erreur : {ticker}")
+⚠️ Ceci n’est pas un conseil financier. Investir comporte un risque de perte en capital.
+"""
 
-# ===================== SCANNER =====================
+with st.sidebar:
+    st.markdown("## 📈 Stock Insight")
+    st.caption("Analyse boursière simplifiée")
+    st.markdown("---")
 
-st.header("🔥 Scanner FØNTANELLE")
+    query = st.text_input("🔍 Rechercher une action", value="Apple")
 
-@st.cache_data(ttl=300)
-def get_scanner(tickers):
+    q = query.lower().strip()
     results = []
+    if q in COMMON:
+        results.append((COMMON[q], query.title()))
 
-    data = yf.download(
-        tickers,
-        period="5d",
-        group_by="ticker",
-        progress=False,
-        auto_adjust=False
+    results += yahoo_search(query)
+
+    seen = set()
+    clean = []
+    for s, n in results:
+        if s not in seen:
+            clean.append((s, n))
+            seen.add(s)
+
+    if not clean:
+        clean = [(query.upper(), query.upper())]
+
+    st.write("Sélectionnez un résultat :")
+    selected = st.radio(
+        "Résultats",
+        clean,
+        format_func=lambda x: f"{x[0]} — {x[1]}",
+        label_visibility="collapsed"
     )
 
-    for tick in tickers:
-        try:
-            df = data[tick]
+    st.markdown('<div class="stock-button">', unsafe_allow_html=True)
+    analyze = st.button("▶ Analyser")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-            if df.empty or len(df) < 2:
-                continue
+    st.markdown("---")
+    st.caption("Données fournies par Yahoo Finance.")
+    st.caption("Outil éducatif gratuit.")
 
-            close = df["Close"].dropna()
-            volume = df["Volume"].dropna() if "Volume" in df.columns else pd.Series(dtype=float)
+symbol = selected[0]
 
-            if len(close) < 2:
-                continue
+ticker = yf.Ticker(symbol)
+info = ticker.info
+hist = ticker.history(period="6mo")
 
-            prix = float(close.iloc[-1])
-            perf_1d = ((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2]) * 100
-            perf_5d = ((close.iloc[-1] - close.iloc[0]) / close.iloc[0]) * 100
-            volume_moyen = int(volume.mean()) if not volume.empty else 0
+if hist.empty:
+    st.error("Données indisponibles pour cette action.")
+    st.stop()
 
-            score_fontanelle = (perf_5d * 0.6) + (perf_1d * 0.4)
+name = val(info, "longName")
+sector = val(info, "sector")
+industry = val(info, "industry")
+country = val(info, "country")
+website = info.get("website")
+price = float(hist["Close"].iloc[-1])
+previous = float(hist["Close"].iloc[-2]) if len(hist) > 1 else price
+change = ((price - previous) / previous) * 100 if previous else 0
 
-            results.append({
-                "Ticker": tick,
-                "Prix": round(prix, 2),
-                "Perf 1j (%)": round(float(perf_1d), 2),
-                "Perf 5j (%)": round(float(perf_5d), 2),
-                "Score FØNTANELLE": round(float(score_fontanelle), 2),
-                "Volume moyen": volume_moyen
-            })
+st.markdown('<div class="notice">⚠️ Cet avis est généré à partir de données publiques. Il ne constitue pas un conseil financier.</div>', unsafe_allow_html=True)
 
-        except Exception:
-            continue
+st.title(f"{name}")
+st.caption(f"{symbol} · {sector} · {country}")
 
-    return pd.DataFrame(results)
+tabs = st.tabs(["🏠 Accueil", "📊 Marché", "📈 Performance", "💰 Ratios", "⚠️ Risque", "📝 Résumé"])
 
-df_scanner = get_scanner(actions_eu)
+with tabs[0]:
+    left, right = st.columns([1, 1.5])
 
-if not df_scanner.empty:
-    col1, col2 = st.columns(2)
+    with left:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("🏢 L'entreprise en bref")
+        st.write(f"**Secteur :** {sector}")
+        st.write(f"**Industrie :** {industry}")
+        st.write(f"**Pays :** {country}")
+        st.write(f"**Employés :** {val(info, 'fullTimeEmployees')}")
+        if website:
+            st.markdown(f"[🌐 Site officiel]({website})")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with col1:
-        st.subheader("🚀 Top signaux positifs")
-        st.dataframe(
-            df_scanner.sort_values("Score FØNTANELLE", ascending=False).head(8),
-            use_container_width=True
-        )
+        k1, k2 = st.columns(2)
+        with k1:
+            st.markdown(f'<div class="kpi"><div class="kpi-title">Market Cap</div><div class="kpi-value">{money(info.get("marketCap"))}</div></div>', unsafe_allow_html=True)
+        with k2:
+            st.markdown(f'<div class="kpi"><div class="kpi-title">Prix actuel</div><div class="kpi-value">${price:.2f}</div></div>', unsafe_allow_html=True)
 
-    with col2:
-        st.subheader("⚠️ Top signaux négatifs")
-        st.dataframe(
-            df_scanner.sort_values("Score FØNTANELLE", ascending=True).head(8),
-            use_container_width=True
-        )
-else:
-    st.warning("Aucune donnée disponible pour le scanner.")
+    with right:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("📄 À propos de l'entreprise")
+        st.markdown(french_description(info))
+        st.markdown('<div class="tip">💡 Conseil débutant : la capitalisation boursière représente la valeur totale estimée de l’entreprise en bourse.</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# ===================== GRAPH =====================
+    st.subheader("📊 Vue d'ensemble rapide")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Prix", f"${price:.2f}", f"{change:.2f}%")
+    c2.metric("P/E", val(info, "trailingPE"))
+    c3.metric("+ Haut 52 sem.", val(info, "fiftyTwoWeekHigh"))
+    c4.metric("+ Bas 52 sem.", val(info, "fiftyTwoWeekLow"))
 
-st.header("📈 Graphique détaillé")
-
-options = {**indices, **{ticker: ticker for ticker in actions_eu}}
-
-choix = st.selectbox(
-    "Choisis un titre ou indice",
-    list(options.keys())
-)
-
-ticker_choisi = options[choix]
-intervalle = "1h" if periode == "1d" else "1d"
-
-data = yf.download(
-    ticker_choisi,
-    period=periode,
-    interval=intervalle,
-    progress=False,
-    auto_adjust=False
-)
-
-if not data.empty:
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
-
+with tabs[1]:
+    st.subheader("📊 Graphique du marché")
     fig = go.Figure()
-
-    fig.add_trace(
-        go.Candlestick(
-            x=data.index,
-            open=data["Open"],
-            high=data["High"],
-            low=data["Low"],
-            close=data["Close"],
-            name="Prix"
-        )
-    )
-
-    if afficher_volume and "Volume" in data.columns:
-        fig.add_trace(
-            go.Bar(
-                x=data.index,
-                y=data["Volume"],
-                name="Volume",
-                opacity=0.25,
-                yaxis="y2"
-            )
-        )
-
-    fig.update_layout(
-        title=f"{choix} — {periode}",
-        yaxis=dict(title="Prix"),
-        yaxis2=dict(
-            title="Volume",
-            overlaying="y",
-            side="right",
-            showgrid=False
-        ),
-        height=650,
-        template="plotly_dark",
-        xaxis_rangeslider_visible=False
-    )
-
+    fig.add_trace(go.Candlestick(
+        x=hist.index,
+        open=hist["Open"],
+        high=hist["High"],
+        low=hist["Low"],
+        close=hist["Close"],
+        name=symbol
+    ))
+    fig.update_layout(template="plotly_white", height=560, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
 
-else:
-    st.warning("Données indisponibles pour ce titre.")
+with tabs[2]:
+    st.subheader("📈 Performance")
+    first = float(hist["Close"].iloc[0])
+    perf = ((price - first) / first) * 100
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Début période", f"${first:.2f}")
+    c2.metric("Prix actuel", f"${price:.2f}")
+    c3.metric("Performance 6 mois", f"{perf:.2f}%")
+    st.line_chart(hist["Close"])
 
-# ===================== EXPORT =====================
+with tabs[3]:
+    st.subheader("💰 Ratios financiers")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("P/E", val(info, "trailingPE"))
+    c2.metric("EPS", val(info, "trailingEps"))
+    c3.metric("Beta", val(info, "beta"))
+    c4.metric("Dividend Yield", val(info, "dividendYield"))
 
-st.header("📁 Export")
+with tabs[4]:
+    st.subheader("⚠️ Risque")
+    volatility = hist["Close"].pct_change().std() * (252 ** 0.5) * 100
+    drawdown = ((hist["Close"] / hist["Close"].cummax()) - 1).min() * 100
+    c1, c2 = st.columns(2)
+    c1.metric("Volatilité estimée", f"{volatility:.2f}%")
+    c2.metric("Perte max période", f"{drawdown:.2f}%")
+    st.warning("Une forte volatilité signifie que le prix peut varier rapidement. Aucun rendement n’est garanti.")
 
-if not df_scanner.empty:
-    csv = df_scanner.to_csv(index=False).encode("utf-8")
+with tabs[5]:
+    st.subheader("📝 Résumé & recommandation")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown(recommendation(hist, info))
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.download_button(
-        label="Télécharger le scanner en CSV",
-        data=csv,
-        file_name=f"fontanelle_scanner_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-        mime="text/csv"
-    )
-
-# ===================== FOOTER =====================
-
-st.success("Radar opérationnel FØNTANELLE ∞ prêt.")
-st.info("Pour lancer localement : streamlit run app.py")
+st.caption("Stock Insight — application éducative gratuite. Aucune API payante obligatoire.")
