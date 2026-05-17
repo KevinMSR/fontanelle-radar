@@ -2,255 +2,237 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 import requests
+import streamlit.components.v1 as components
+from datetime import datetime
 
-st.set_page_config(page_title="Stock Insight", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Stock Insight Neon", page_icon="📈", layout="wide")
 
 st.markdown("""
 <style>
-.stApp { background:#f8fafc; }
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg,#0f172a,#111827);
+.stApp {
+    background:
+    radial-gradient(circle at 20% 10%, rgba(168,85,247,.35), transparent 30%),
+    radial-gradient(circle at 80% 0%, rgba(34,211,238,.25), transparent 25%),
+    linear-gradient(135deg,#020617,#0f172a 45%,#111827);
+    color:#e5e7eb;
 }
-section[data-testid="stSidebar"] * { color:white !important; }
-.block-container { padding-top:2rem; max-width:1200px; }
+.block-container { padding-top:2rem; max-width:1250px; }
+section[data-testid="stSidebar"] {
+    background:linear-gradient(180deg,#020617,#111827,#1e1b4b);
+    border-right:1px solid rgba(34,211,238,.25);
+}
+section[data-testid="stSidebar"] * { color:#f8fafc !important; }
+h1,h2,h3 { color:#f8fafc !important; text-shadow:0 0 18px rgba(34,211,238,.35); }
+.neon-title {
+    font-size:46px;
+    font-weight:900;
+    background:linear-gradient(90deg,#22d3ee,#a855f7,#f472b6);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    text-shadow:0 0 30px rgba(168,85,247,.7);
+}
 .card {
-    background:white;
-    border:1px solid #e5e7eb;
-    border-radius:18px;
+    background:rgba(15,23,42,.72);
+    border:1px solid rgba(34,211,238,.25);
+    border-radius:22px;
     padding:22px;
-    box-shadow:0 8px 28px rgba(15,23,42,.08);
+    box-shadow:0 0 35px rgba(34,211,238,.12);
+    backdrop-filter:blur(14px);
     margin-bottom:18px;
 }
 .kpi {
-    background:white;
-    border:1px solid #e5e7eb;
-    border-radius:16px;
+    background:rgba(15,23,42,.80);
+    border:1px solid rgba(168,85,247,.35);
+    border-radius:18px;
     padding:18px;
-    box-shadow:0 6px 20px rgba(15,23,42,.06);
+    box-shadow:0 0 24px rgba(168,85,247,.18);
 }
-.kpi-title { color:#64748b; font-size:13px; font-weight:700; text-transform:uppercase; }
-.kpi-value { font-size:26px; font-weight:800; color:#0f172a; margin-top:6px; }
+.kpi-title { color:#94a3b8; font-size:12px; text-transform:uppercase; font-weight:800; }
+.kpi-value { font-size:28px; font-weight:900; color:#f8fafc; }
 .notice {
-    background:#ecfdf5;
-    border:1px solid #86efac;
-    color:#166534;
+    background:rgba(16,185,129,.12);
+    border:1px solid rgba(16,185,129,.45);
+    color:#bbf7d0;
     padding:14px 18px;
-    border-radius:14px;
-    margin-bottom:18px;
+    border-radius:16px;
 }
-.tip {
-    background:#eff6ff;
-    border:1px solid #bfdbfe;
-    color:#1e40af;
-    padding:14px;
-    border-radius:14px;
+.glow-btn button {
+    background:linear-gradient(135deg,#06b6d4,#8b5cf6,#ec4899)!important;
+    color:white!important;
+    border:0!important;
+    border-radius:14px!important;
+    font-weight:900!important;
+    box-shadow:0 0 22px rgba(168,85,247,.45)!important;
 }
-.stock-button button {
-    background:linear-gradient(135deg,#6366f1,#8b5cf6) !important;
-    color:white !important;
-    border-radius:12px !important;
-    border:0 !important;
-    width:100%;
-    font-weight:700;
+.stTabs [data-baseweb="tab-list"] { gap:10px; }
+.stTabs [data-baseweb="tab"] {
+    background:rgba(15,23,42,.7);
+    border:1px solid rgba(34,211,238,.18);
+    border-radius:12px;
+    color:#e5e7eb;
 }
 </style>
 """, unsafe_allow_html=True)
 
-COMMON = {
-    "apple": "AAPL", "aapl": "AAPL",
-    "microsoft": "MSFT", "tesla": "TSLA",
-    "amazon": "AMZN", "google": "GOOGL",
-    "alphabet": "GOOGL", "meta": "META", "nvidia": "NVDA",
-    "lvmh": "MC.PA", "total": "TTE.PA", "airbus": "AIR.PA",
-    "bitcoin": "BTC-USD", "ethereum": "ETH-USD",
-}
+@st.cache_data(ttl=86400)
+def load_catalog():
+    rows = []
 
-def yahoo_search(query):
+    base_assets = {
+        "Apple": "AAPL", "Microsoft": "MSFT", "Nvidia": "NVDA", "Tesla": "TSLA",
+        "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", "Netflix": "NFLX",
+        "AMD": "AMD", "Intel": "INTC", "Palantir": "PLTR", "Coinbase": "COIN",
+        "Berkshire Hathaway": "BRK-B", "Visa": "V", "Mastercard": "MA",
+        "JPMorgan": "JPM", "BlackRock": "BLK", "McDonald’s": "MCD",
+        "Coca-Cola": "KO", "Pepsi": "PEP", "Nike": "NKE",
+        "LVMH": "MC.PA", "TotalEnergies": "TTE.PA", "Airbus": "AIR.PA",
+        "BNP Paribas": "BNP.PA", "Schneider Electric": "SU.PA", "Hermès": "RMS.PA",
+        "Safran": "SAF.PA", "Sanofi": "SAN.PA", "AXA": "CS.PA",
+        "CAC 40": "^FCHI", "DAX": "^GDAXI", "FTSE 100": "^FTSE",
+        "Euro Stoxx 50": "^STOXX50E", "S&P 500": "^GSPC", "Nasdaq 100": "^NDX",
+        "Dow Jones": "^DJI", "Russell 2000": "^RUT",
+        "Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD",
+        "BNB": "BNB-USD", "XRP": "XRP-USD", "Cardano": "ADA-USD",
+        "Dogecoin": "DOGE-USD", "Avalanche": "AVAX-USD", "Chainlink": "LINK-USD",
+        "Polkadot": "DOT-USD", "Polygon": "MATIC-USD", "Litecoin": "LTC-USD",
+        "Gold": "GC=F", "Silver": "SI=F", "Oil WTI": "CL=F", "Natural Gas": "NG=F",
+        "EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "USD/JPY": "JPY=X",
+        "SPY ETF": "SPY", "QQQ ETF": "QQQ", "Vanguard S&P 500 ETF": "VOO",
+        "iShares MSCI World ETF": "URTH", "ARK Innovation ETF": "ARKK",
+    }
+
+    for name, symbol in base_assets.items():
+        rows.append({"name": name, "symbol": symbol, "type": "Catalogue"})
+
     try:
-        url = "https://query1.finance.yahoo.com/v1/finance/search"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, params={"q": query, "quotes_count": 6}, headers=headers, timeout=8)
-        data = r.json()
-        out = []
-        for q in data.get("quotes", []):
-            sym = q.get("symbol")
-            name = q.get("shortname") or q.get("longname") or sym
-            if sym:
-                out.append((sym, name))
-        return out
+        url = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+        df = pd.read_csv(url, sep="|")
+        df = df[df["Test Issue"] == "N"]
+        for _, r in df.head(3000).iterrows():
+            rows.append({"name": r.get("Security Name", ""), "symbol": r.get("Symbol", ""), "type": "NASDAQ"})
     except Exception:
-        return []
+        pass
+
+    try:
+        url = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+        df = pd.read_csv(url, sep="|")
+        df = df[df["Test Issue"] == "N"]
+        for _, r in df.head(3000).iterrows():
+            sym = str(r.get("ACT Symbol", "")).replace(".", "-")
+            rows.append({"name": r.get("Security Name", ""), "symbol": sym, "type": "NYSE/AMEX"})
+    except Exception:
+        pass
+
+    catalog = pd.DataFrame(rows).dropna()
+    catalog = catalog[catalog["symbol"].astype(str).str.len() > 0]
+    catalog = catalog.drop_duplicates("symbol")
+    return catalog
+
+@st.cache_data(ttl=3600)
+def get_history(symbol):
+    return yf.Ticker(symbol).history(period="6mo")
+
+@st.cache_data(ttl=3600)
+def get_info(symbol):
+    try:
+        return yf.Ticker(symbol).info
+    except Exception:
+        return {}
 
 def money(x):
     try:
         x = float(x)
-        if abs(x) >= 1_000_000_000_000:
-            return f"${x/1_000_000_000_000:.2f}T"
-        if abs(x) >= 1_000_000_000:
-            return f"${x/1_000_000_000:.2f}B"
-        if abs(x) >= 1_000_000:
-            return f"${x/1_000_000:.2f}M"
+        if abs(x) >= 1_000_000_000_000: return f"${x/1_000_000_000_000:.2f}T"
+        if abs(x) >= 1_000_000_000: return f"${x/1_000_000_000:.2f}B"
+        if abs(x) >= 1_000_000: return f"${x/1_000_000:.2f}M"
         return f"${x:,.2f}"
     except Exception:
         return "N/D"
 
-def val(info, key):
-    v = info.get(key)
-    return "N/D" if v in [None, ""] else v
+def tv_symbol(symbol):
+    if symbol.endswith("-USD"): return "CRYPTO:" + symbol.replace("-USD", "USD")
+    if symbol.endswith(".PA"): return "EURONEXT:" + symbol.replace(".PA", "")
+    if symbol.startswith("^"): return symbol
+    return "NASDAQ:" + symbol
 
-def french_description(info):
-    name = val(info, "longName")
-    sector = val(info, "sector")
-    industry = val(info, "industry")
-    country = val(info, "country")
-    employees = val(info, "fullTimeEmployees")
-    return f"""
-**{name}** est une entreprise basée principalement en **{country}**.  
-Elle évolue dans le secteur **{sector}**, avec une activité liée à **{industry}**.
-
-Cette fiche donne une lecture simplifiée de l’entreprise : activité, prix, capitalisation, performance récente, ratios financiers et niveau de risque.
-
-**Employés :** {employees}
-"""
-
-def recommendation(hist, info):
-    close = hist["Close"]
-    last = float(close.iloc[-1])
-    ma20 = float(close.tail(20).mean())
-    ma60 = float(close.tail(60).mean()) if len(close) >= 60 else ma20
-    perf = ((last - float(close.iloc[0])) / float(close.iloc[0])) * 100
-    vol = close.pct_change().std() * (252 ** 0.5) * 100
-    pe = info.get("trailingPE")
-
-    score = 0
-    if last > ma20: score += 1
-    if last > ma60: score += 1
-    if perf > 5: score += 1
-    if vol < 35: score += 1
-    if pe and pe < 35: score += 1
-
-    if score >= 4:
-        avis = "profil intéressant à surveiller, avec une tendance plutôt constructive."
-    elif score >= 2:
-        avis = "profil neutre : l’action mérite une analyse complémentaire."
-    else:
-        avis = "profil risqué ou fragile : prudence avant toute décision."
-
-    return f"""
-### Recommandation éducative : {avis}
-
-- Prix actuel : **${last:.2f}**
-- Moyenne 20 jours : **${ma20:.2f}**
-- Moyenne 60 jours : **${ma60:.2f}**
-- Performance 6 mois : **{perf:.2f}%**
-- Volatilité estimée : **{vol:.2f}%**
-
-⚠️ Ceci n’est pas un conseil financier. Investir comporte un risque de perte en capital.
-"""
+catalog = load_catalog()
 
 with st.sidebar:
-    st.markdown("## 📈 Stock Insight")
-    st.caption("Analyse boursière simplifiée")
+    st.markdown('<div class="neon-title">Stock Insight</div>', unsafe_allow_html=True)
+    st.caption("Radar financier cyberpunk sans API payante")
     st.markdown("---")
 
-    query = st.text_input("🔍 Rechercher une action", value="Apple")
-
+    query = st.text_input("🔎 Recherche action / crypto / ETF / forex", "Apple")
     q = query.lower().strip()
-    results = []
-    if q in COMMON:
-        results.append((COMMON[q], query.title()))
 
-    results += yahoo_search(query)
+    filtered = catalog[
+        catalog["name"].str.lower().str.contains(q, na=False) |
+        catalog["symbol"].str.lower().str.contains(q, na=False)
+    ].head(60)
 
-    seen = set()
-    clean = []
-    for s, n in results:
-        if s not in seen:
-            clean.append((s, n))
-            seen.add(s)
+    if filtered.empty:
+        filtered = catalog.head(40)
 
-    if not clean:
-        clean = [(query.upper(), query.upper())]
-
-    st.write("Sélectionnez un résultat :")
-    selected = st.radio(
-        "Résultats",
-        clean,
-        format_func=lambda x: f"{x[0]} — {x[1]}",
-        label_visibility="collapsed"
+    selected_label = st.selectbox(
+        "Palette de marché",
+        filtered.apply(lambda r: f"{r['symbol']} — {r['name']} [{r['type']}]", axis=1)
     )
 
-    st.markdown('<div class="stock-button">', unsafe_allow_html=True)
-    analyze = st.button("▶ Analyser")
+    symbol = selected_label.split(" — ")[0].strip()
+
+    st.markdown('<div class="glow-btn">', unsafe_allow_html=True)
+    st.button("⚡ Scanner l’actif")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.caption("Données fournies par Yahoo Finance.")
-    st.caption("Outil éducatif gratuit.")
+    st.caption(f"Catalogue chargé : {len(catalog)} actifs")
+    st.caption("Mise à jour automatique toutes les 24h")
 
-symbol = selected[0]
-
-ticker = yf.Ticker(symbol)
-info = ticker.info
-hist = ticker.history(period="6mo")
+hist = get_history(symbol)
+info = get_info(symbol)
 
 if hist.empty:
-    st.error("Données indisponibles pour cette action.")
+    st.error("Données indisponibles pour cet actif.")
     st.stop()
 
-name = val(info, "longName")
-sector = val(info, "sector")
-industry = val(info, "industry")
-country = val(info, "country")
-website = info.get("website")
+name = info.get("longName") or info.get("shortName") or symbol
+sector = info.get("sector", "N/D")
+industry = info.get("industry", "N/D")
+country = info.get("country", "N/D")
 price = float(hist["Close"].iloc[-1])
 previous = float(hist["Close"].iloc[-2]) if len(hist) > 1 else price
 change = ((price - previous) / previous) * 100 if previous else 0
 
-st.markdown('<div class="notice">⚠️ Cet avis est généré à partir de données publiques. Il ne constitue pas un conseil financier.</div>', unsafe_allow_html=True)
+st.markdown('<div class="neon-title">📈 Stock Insight Neon Terminal</div>', unsafe_allow_html=True)
+st.markdown('<div class="notice">⚠️ Analyse éducative générée depuis des données publiques. Aucun conseil financier. Aucun abonnement API obligatoire.</div>', unsafe_allow_html=True)
 
-st.title(f"{name}")
-st.caption(f"{symbol} · {sector} · {country}")
+st.title(name)
+st.caption(f"{symbol} · {sector} · {industry} · {country}")
 
-tabs = st.tabs(["🏠 Accueil", "📊 Marché", "📈 Performance", "💰 Ratios", "⚠️ Risque", "📝 Résumé"])
+tabs = st.tabs(["🏠 Accueil", "📊 Graphique", "🌐 TradingView", "🔥 Heatmap", "🤖 IA Résumé", "⭐ Watchlist"])
 
 with tabs[0]:
-    left, right = st.columns([1, 1.5])
-
-    with left:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("🏢 L'entreprise en bref")
-        st.write(f"**Secteur :** {sector}")
-        st.write(f"**Industrie :** {industry}")
-        st.write(f"**Pays :** {country}")
-        st.write(f"**Employés :** {val(info, 'fullTimeEmployees')}")
-        if website:
-            st.markdown(f"[🌐 Site officiel]({website})")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        k1, k2 = st.columns(2)
-        with k1:
-            st.markdown(f'<div class="kpi"><div class="kpi-title">Market Cap</div><div class="kpi-value">{money(info.get("marketCap"))}</div></div>', unsafe_allow_html=True)
-        with k2:
-            st.markdown(f'<div class="kpi"><div class="kpi-title">Prix actuel</div><div class="kpi-value">${price:.2f}</div></div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("📄 À propos de l'entreprise")
-        st.markdown(french_description(info))
-        st.markdown('<div class="tip">💡 Conseil débutant : la capitalisation boursière représente la valeur totale estimée de l’entreprise en bourse.</div>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.subheader("📊 Vue d'ensemble rapide")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Prix", f"${price:.2f}", f"{change:.2f}%")
-    c2.metric("P/E", val(info, "trailingPE"))
-    c3.metric("+ Haut 52 sem.", val(info, "fiftyTwoWeekHigh"))
-    c4.metric("+ Bas 52 sem.", val(info, "fiftyTwoWeekLow"))
+    c1.markdown(f'<div class="kpi"><div class="kpi-title">Prix</div><div class="kpi-value">${price:.2f}</div></div>', unsafe_allow_html=True)
+    c2.markdown(f'<div class="kpi"><div class="kpi-title">Variation</div><div class="kpi-value">{change:.2f}%</div></div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="kpi"><div class="kpi-title">Market Cap</div><div class="kpi-value">{money(info.get("marketCap"))}</div></div>', unsafe_allow_html=True)
+    c4.markdown(f'<div class="kpi"><div class="kpi-title">Beta</div><div class="kpi-value">{info.get("beta","N/D")}</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("🏢 Fiche entreprise")
+    st.write(f"**Nom :** {name}")
+    st.write(f"**Secteur :** {sector}")
+    st.write(f"**Industrie :** {industry}")
+    st.write(f"**Pays :** {country}")
+    st.write(f"**Employés :** {info.get('fullTimeEmployees','N/D')}")
+    if info.get("website"):
+        st.markdown(f"[🌐 Site officiel]({info.get('website')})")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with tabs[1]:
-    st.subheader("📊 Graphique du marché")
+    st.subheader("📊 Graphe holographique")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=hist.index,
@@ -258,42 +240,92 @@ with tabs[1]:
         high=hist["High"],
         low=hist["Low"],
         close=hist["Close"],
-        name=symbol
+        increasing_line_color="#22d3ee",
+        decreasing_line_color="#f43f5e"
     ))
-    fig.update_layout(template="plotly_white", height=560, xaxis_rangeslider_visible=False)
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(2,6,23,.85)",
+        height=560,
+        xaxis_rangeslider_visible=False
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 with tabs[2]:
-    st.subheader("📈 Performance")
-    first = float(hist["Close"].iloc[0])
-    perf = ((price - first) / first) * 100
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Début période", f"${first:.2f}")
-    c2.metric("Prix actuel", f"${price:.2f}")
-    c3.metric("Performance 6 mois", f"{perf:.2f}%")
-    st.line_chart(hist["Close"])
+    st.subheader("🌐 TradingView intégré")
+    url = f"https://s.tradingview.com/widgetembed/?symbol={tv_symbol(symbol)}&interval=D&theme=dark&style=1&locale=fr"
+    components.iframe(url, height=620, scrolling=True)
 
 with tabs[3]:
-    st.subheader("💰 Ratios financiers")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("P/E", val(info, "trailingPE"))
-    c2.metric("EPS", val(info, "trailingEps"))
-    c3.metric("Beta", val(info, "beta"))
-    c4.metric("Dividend Yield", val(info, "dividendYield"))
+    st.subheader("🔥 Heatmap néon")
+    sample = catalog.head(40).copy()
+    perf_rows = []
+    for s in sample["symbol"].head(30):
+        try:
+            h = yf.Ticker(s).history(period="5d")
+            if len(h) >= 2:
+                p = ((h["Close"].iloc[-1] - h["Close"].iloc[0]) / h["Close"].iloc[0]) * 100
+                perf_rows.append({"symbol": s, "performance": p})
+        except Exception:
+            pass
+
+    if perf_rows:
+        dfp = pd.DataFrame(perf_rows)
+        fig = px.treemap(
+            dfp,
+            path=["symbol"],
+            values=dfp["performance"].abs() + 1,
+            color="performance",
+            color_continuous_scale=["#f43f5e", "#111827", "#22d3ee"]
+        )
+        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", height=520)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Heatmap temporairement indisponible.")
 
 with tabs[4]:
-    st.subheader("⚠️ Risque")
-    volatility = hist["Close"].pct_change().std() * (252 ** 0.5) * 100
-    drawdown = ((hist["Close"] / hist["Close"].cummax()) - 1).min() * 100
-    c1, c2 = st.columns(2)
-    c1.metric("Volatilité estimée", f"{volatility:.2f}%")
-    c2.metric("Perte max période", f"{drawdown:.2f}%")
-    st.warning("Une forte volatilité signifie que le prix peut varier rapidement. Aucun rendement n’est garanti.")
+    st.subheader("🤖 Résumé IA local")
+    close = hist["Close"]
+    ma20 = close.tail(20).mean()
+    ma60 = close.tail(60).mean() if len(close) >= 60 else ma20
+    perf = ((close.iloc[-1] - close.iloc[0]) / close.iloc[0]) * 100
+    volatility = close.pct_change().std() * (252 ** 0.5) * 100
 
-with tabs[5]:
-    st.subheader("📝 Résumé & recommandation")
+    score = 0
+    if price > ma20: score += 1
+    if price > ma60: score += 1
+    if perf > 5: score += 1
+    if volatility < 35: score += 1
+
+    reco = "intéressant à surveiller" if score >= 3 else "neutre / prudent" if score == 2 else "risqué"
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(recommendation(hist, info))
+    st.markdown(f"""
+### Verdict éducatif : **{reco}**
+
+- Prix actuel : **${price:.2f}**
+- Moyenne 20 jours : **${ma20:.2f}**
+- Moyenne 60 jours : **${ma60:.2f}**
+- Performance 6 mois : **{perf:.2f}%**
+- Volatilité estimée : **{volatility:.2f}%**
+
+⚠️ Ceci n’est pas un conseil financier. Risque de perte en capital.
+""")
     st.markdown("</div>", unsafe_allow_html=True)
 
-st.caption("Stock Insight — application éducative gratuite. Aucune API payante obligatoire.")
+with tabs[5]:
+    st.subheader("⭐ Watchlist futuriste")
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = []
+
+    if st.button("Ajouter à la watchlist"):
+        if symbol not in st.session_state.watchlist:
+            st.session_state.watchlist.append(symbol)
+
+    if st.session_state.watchlist:
+        st.write(st.session_state.watchlist)
+    else:
+        st.info("Aucun actif dans la watchlist.")
+
+st.caption("Stock Insight Neon — données publiques, Yahoo Finance via yfinance, sans clé API payante.")
