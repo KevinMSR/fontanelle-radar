@@ -1,4 +1,5 @@
 streamlit
-requests
-feedparser
 yfinance
+pandas
+plotly
+requests
