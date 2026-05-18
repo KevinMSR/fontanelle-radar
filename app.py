@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import requests
 import streamlit.components.v1 as components
 from datetime import datetime
 
@@ -25,14 +24,16 @@ section[data-testid="stSidebar"] {
 }
 section[data-testid="stSidebar"] * { color:#f8fafc !important; }
 h1,h2,h3 { color:#f8fafc !important; text-shadow:0 0 18px rgba(34,211,238,.35); }
+
 .neon-title {
-    font-size:46px;
+    font-size:44px;
     font-weight:900;
     background:linear-gradient(90deg,#22d3ee,#a855f7,#f472b6);
     -webkit-background-clip:text;
     -webkit-text-fill-color:transparent;
     text-shadow:0 0 30px rgba(168,85,247,.7);
 }
+
 .card {
     background:rgba(15,23,42,.72);
     border:1px solid rgba(34,211,238,.25);
@@ -42,6 +43,7 @@ h1,h2,h3 { color:#f8fafc !important; text-shadow:0 0 18px rgba(34,211,238,.35); 
     backdrop-filter:blur(14px);
     margin-bottom:18px;
 }
+
 .kpi {
     background:rgba(15,23,42,.80);
     border:1px solid rgba(168,85,247,.35);
@@ -50,14 +52,17 @@ h1,h2,h3 { color:#f8fafc !important; text-shadow:0 0 18px rgba(34,211,238,.35); 
     box-shadow:0 0 24px rgba(168,85,247,.18);
 }
 .kpi-title { color:#94a3b8; font-size:12px; text-transform:uppercase; font-weight:800; }
-.kpi-value { font-size:28px; font-weight:900; color:#f8fafc; }
+.kpi-value { font-size:26px; font-weight:900; color:#f8fafc; }
+
 .notice {
     background:rgba(16,185,129,.12);
     border:1px solid rgba(16,185,129,.45);
     color:#bbf7d0;
     padding:14px 18px;
     border-radius:16px;
+    margin-bottom:18px;
 }
+
 .glow-btn button {
     background:linear-gradient(135deg,#06b6d4,#8b5cf6,#ec4899)!important;
     color:white!important;
@@ -66,13 +71,8 @@ h1,h2,h3 { color:#f8fafc !important; text-shadow:0 0 18px rgba(34,211,238,.35); 
     font-weight:900!important;
     box-shadow:0 0 22px rgba(168,85,247,.45)!important;
 }
+
 .stTabs [data-baseweb="tab-list"] { gap:10px; }
-.stTabs [data-baseweb="tab"] {
-    background:rgba(15,23,42,.7);
-    border:1px solid rgba(34,211,238,.18);
-    border-radius:12px;
-    color:#e5e7eb;
-}
 .stTabs [data-baseweb="tab"] {
     background:rgba(15,23,42,.7);
     border:1px solid rgba(34,211,238,.18);
@@ -100,9 +100,9 @@ div[data-testid="stTextInput"] label,
 div[data-testid="stSelectbox"] label {
     color: #e5e7eb !important;
 }
-
 </style>
 """, unsafe_allow_html=True)
+
 
 @st.cache_data(ttl=86400)
 def load_catalog():
@@ -115,18 +115,24 @@ def load_catalog():
         "Berkshire Hathaway": "BRK-B", "Visa": "V", "Mastercard": "MA",
         "JPMorgan": "JPM", "BlackRock": "BLK", "McDonald’s": "MCD",
         "Coca-Cola": "KO", "Pepsi": "PEP", "Nike": "NKE",
+
         "LVMH": "MC.PA", "TotalEnergies": "TTE.PA", "Airbus": "AIR.PA",
         "BNP Paribas": "BNP.PA", "Schneider Electric": "SU.PA", "Hermès": "RMS.PA",
         "Safran": "SAF.PA", "Sanofi": "SAN.PA", "AXA": "CS.PA",
+
         "CAC 40": "^FCHI", "DAX": "^GDAXI", "FTSE 100": "^FTSE",
         "Euro Stoxx 50": "^STOXX50E", "S&P 500": "^GSPC", "Nasdaq 100": "^NDX",
         "Dow Jones": "^DJI", "Russell 2000": "^RUT",
+
         "Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD",
         "BNB": "BNB-USD", "XRP": "XRP-USD", "Cardano": "ADA-USD",
         "Dogecoin": "DOGE-USD", "Avalanche": "AVAX-USD", "Chainlink": "LINK-USD",
         "Polkadot": "DOT-USD", "Polygon": "MATIC-USD", "Litecoin": "LTC-USD",
+
         "Gold": "GC=F", "Silver": "SI=F", "Oil WTI": "CL=F", "Natural Gas": "NG=F",
+
         "EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "USD/JPY": "JPY=X",
+
         "SPY ETF": "SPY", "QQQ ETF": "QQQ", "Vanguard S&P 500 ETF": "VOO",
         "iShares MSCI World ETF": "URTH", "ARK Innovation ETF": "ARKK",
     }
@@ -135,21 +141,27 @@ def load_catalog():
         rows.append({"name": name, "symbol": symbol, "type": "Catalogue"})
 
     try:
-        url = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-        df = pd.read_csv(url, sep="|")
+        df = pd.read_csv("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", sep="|")
         df = df[df["Test Issue"] == "N"]
-        for _, r in df.head(3000).iterrows():
-            rows.append({"name": r.get("Security Name", ""), "symbol": r.get("Symbol", ""), "type": "NASDAQ"})
+        for _, r in df.head(1500).iterrows():
+            rows.append({
+                "name": str(r.get("Security Name", "")),
+                "symbol": str(r.get("Symbol", "")),
+                "type": "NASDAQ"
+            })
     except Exception:
         pass
 
     try:
-        url = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
-        df = pd.read_csv(url, sep="|")
+        df = pd.read_csv("https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt", sep="|")
         df = df[df["Test Issue"] == "N"]
-        for _, r in df.head(3000).iterrows():
+        for _, r in df.head(1500).iterrows():
             sym = str(r.get("ACT Symbol", "")).replace(".", "-")
-            rows.append({"name": r.get("Security Name", ""), "symbol": sym, "type": "NYSE/AMEX"})
+            rows.append({
+                "name": str(r.get("Security Name", "")),
+                "symbol": sym,
+                "type": "NYSE/AMEX"
+            })
     except Exception:
         pass
 
@@ -158,9 +170,21 @@ def load_catalog():
     catalog = catalog.drop_duplicates("symbol")
     return catalog
 
-@st.cache_data(ttl=3600)
+
+@st.cache_data(ttl=7200)
 def get_history(symbol):
-    return yf.Ticker(symbol).history(period="6mo")
+    try:
+        data = yf.download(symbol, period="6mo", progress=False, threads=False)
+        if data is None or data.empty:
+            return pd.DataFrame()
+
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+
+        return data
+    except Exception:
+        return pd.DataFrame()
+
 
 @st.cache_data(ttl=3600)
 def get_info(symbol):
@@ -169,21 +193,30 @@ def get_info(symbol):
     except Exception:
         return {}
 
+
 def money(x):
     try:
         x = float(x)
-        if abs(x) >= 1_000_000_000_000: return f"${x/1_000_000_000_000:.2f}T"
-        if abs(x) >= 1_000_000_000: return f"${x/1_000_000_000:.2f}B"
-        if abs(x) >= 1_000_000: return f"${x/1_000_000:.2f}M"
+        if abs(x) >= 1_000_000_000_000:
+            return f"${x/1_000_000_000_000:.2f}T"
+        if abs(x) >= 1_000_000_000:
+            return f"${x/1_000_000_000:.2f}B"
+        if abs(x) >= 1_000_000:
+            return f"${x/1_000_000:.2f}M"
         return f"${x:,.2f}"
     except Exception:
         return "N/D"
 
+
 def tv_symbol(symbol):
-    if symbol.endswith("-USD"): return "CRYPTO:" + symbol.replace("-USD", "USD")
-    if symbol.endswith(".PA"): return "EURONEXT:" + symbol.replace(".PA", "")
-    if symbol.startswith("^"): return symbol
+    if symbol.endswith("-USD"):
+        return "CRYPTO:" + symbol.replace("-USD", "USD")
+    if symbol.endswith(".PA"):
+        return "EURONEXT:" + symbol.replace(".PA", "")
+    if symbol.startswith("^"):
+        return symbol
     return "NASDAQ:" + symbol
+
 
 catalog = load_catalog()
 
@@ -218,17 +251,19 @@ with st.sidebar:
     st.caption(f"Catalogue chargé : {len(catalog)} actifs")
     st.caption("Mise à jour automatique toutes les 24h")
 
+
 hist = get_history(symbol)
 info = get_info(symbol)
 
 if hist.empty:
-    st.error("Données indisponibles pour cet actif.")
+    st.error("Données temporairement indisponibles pour cet actif. Yahoo Finance peut limiter les requêtes. Réessaie dans quelques minutes ou choisis un autre actif.")
     st.stop()
 
 name = info.get("longName") or info.get("shortName") or symbol
 sector = info.get("sector", "N/D")
 industry = info.get("industry", "N/D")
 country = info.get("country", "N/D")
+
 price = float(hist["Close"].iloc[-1])
 previous = float(hist["Close"].iloc[-2]) if len(hist) > 1 else price
 change = ((price - previous) / previous) * 100 if previous else 0
@@ -239,18 +274,30 @@ st.markdown('<div class="notice">⚠️ Analyse éducative générée depuis des
 st.title(name)
 st.caption(f"{symbol} · {sector} · {industry} · {country}")
 
-tabs = st.tabs(["🏠 Accueil", "📊 Graphique", "🌐 TradingView", "🔥 Heatmap", "🤖 IA Résumé", "⭐ Watchlist"])
+tabs = st.tabs([
+    "🏠 Accueil",
+    "🌍 Marché",
+    "📈 Performance",
+    "📊 Ratios",
+    "⚠️ Risque",
+    "🧠 Résumé",
+    "🔥 Heatmap",
+    "🌐 TradingView",
+    "⭐ Watchlist"
+])
 
 with tabs[0]:
     c1, c2, c3, c4 = st.columns(4)
+
     c1.markdown(f'<div class="kpi"><div class="kpi-title">Prix</div><div class="kpi-value">${price:.2f}</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="kpi"><div class="kpi-title">Variation</div><div class="kpi-value">{change:.2f}%</div></div>', unsafe_allow_html=True)
+    c2.markdown(f'<div class="kpi"><div class="kpi-title">Variation jour</div><div class="kpi-value">{change:.2f}%</div></div>', unsafe_allow_html=True)
     c3.markdown(f'<div class="kpi"><div class="kpi-title">Market Cap</div><div class="kpi-value">{money(info.get("marketCap"))}</div></div>', unsafe_allow_html=True)
     c4.markdown(f'<div class="kpi"><div class="kpi-title">Beta</div><div class="kpi-value">{info.get("beta","N/D")}</div></div>', unsafe_allow_html=True)
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("🏢 Fiche entreprise")
     st.write(f"**Nom :** {name}")
+    st.write(f"**Symbole :** {symbol}")
     st.write(f"**Secteur :** {sector}")
     st.write(f"**Industrie :** {industry}")
     st.write(f"**Pays :** {country}")
@@ -260,7 +307,17 @@ with tabs[0]:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tabs[1]:
-    st.subheader("📊 Graphe holographique")
+    st.subheader("🌍 Marché")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.write(f"**Type :** {info.get('quoteType', 'N/D')}")
+    st.write(f"**Devise :** {info.get('currency', 'N/D')}")
+    st.write(f"**Exchange :** {info.get('exchange', 'N/D')}")
+    st.write(f"**Volume :** {info.get('volume', 'N/D')}")
+    st.write(f"**Volume moyen :** {info.get('averageVolume', 'N/D')}")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with tabs[2]:
+    st.subheader("📈 Performance holographique")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=hist.index,
@@ -280,19 +337,73 @@ with tabs[1]:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-with tabs[2]:
-    st.subheader("🌐 TradingView intégré")
-    url = f"https://s.tradingview.com/widgetembed/?symbol={tv_symbol(symbol)}&interval=D&theme=dark&style=1&locale=fr"
-    components.iframe(url, height=620, scrolling=True)
-
 with tabs[3]:
+    st.subheader("📊 Ratios")
+    r1, r2, r3 = st.columns(3)
+    r1.markdown(f'<div class="kpi"><div class="kpi-title">P/E</div><div class="kpi-value">{info.get("trailingPE","N/D")}</div></div>', unsafe_allow_html=True)
+    r2.markdown(f'<div class="kpi"><div class="kpi-title">Forward P/E</div><div class="kpi-value">{info.get("forwardPE","N/D")}</div></div>', unsafe_allow_html=True)
+    r3.markdown(f'<div class="kpi"><div class="kpi-title">Dividend Yield</div><div class="kpi-value">{info.get("dividendYield","N/D")}</div></div>', unsafe_allow_html=True)
+
+with tabs[4]:
+    st.subheader("⚠️ Risque")
+    close = hist["Close"]
+    volatility = close.pct_change().std() * (252 ** 0.5) * 100
+    drawdown = ((close / close.cummax()) - 1).min() * 100
+
+    c1, c2 = st.columns(2)
+    c1.metric("Volatilité estimée", f"{volatility:.2f}%")
+    c2.metric("Perte max période", f"{drawdown:.2f}%")
+    st.warning("Une forte volatilité signifie que le prix peut varier rapidement. Aucun rendement n’est garanti.")
+
+with tabs[5]:
+    st.subheader("🧠 Résumé IA local")
+    close = hist["Close"]
+    ma20 = close.tail(20).mean()
+    ma60 = close.tail(60).mean() if len(close) >= 60 else ma20
+    perf = ((close.iloc[-1] - close.iloc[0]) / close.iloc[0]) * 100
+    volatility = close.pct_change().std() * (252 ** 0.5) * 100
+
+    score = 0
+    if price > ma20:
+        score += 1
+    if price > ma60:
+        score += 1
+    if perf > 5:
+        score += 1
+    if volatility < 35:
+        score += 1
+
+    if score >= 3:
+        reco = "intéressant à surveiller, tendance constructive"
+    elif score == 2:
+        reco = "neutre, à surveiller avec prudence"
+    else:
+        reco = "risqué ou faible momentum"
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown(f"""
+### Verdict éducatif : **{reco}**
+
+- Prix actuel : **${price:.2f}**
+- Moyenne 20 jours : **${ma20:.2f}**
+- Moyenne 60 jours : **${ma60:.2f}**
+- Performance 6 mois : **{perf:.2f}%**
+- Volatilité estimée : **{volatility:.2f}%**
+
+⚠️ Ceci n’est pas un conseil financier. Risque de perte en capital.
+""")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with tabs[6]:
     st.subheader("🔥 Heatmap néon")
-    sample = catalog.head(40).copy()
+
+    sample = catalog.head(10).copy()
     perf_rows = []
-    for s in sample["symbol"].head(30):
+
+    for s in sample["symbol"].head(8):
         try:
-            h = yf.Ticker(s).history(period="5d")
-            if len(h) >= 2:
+            h = get_history(s)
+            if h is not None and not h.empty and len(h) >= 2:
                 p = ((h["Close"].iloc[-1] - h["Close"].iloc[0]) / h["Close"].iloc[0]) * 100
                 perf_rows.append({"symbol": s, "performance": p})
         except Exception:
@@ -310,40 +421,16 @@ with tabs[3]:
         fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", height=520)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Heatmap temporairement indisponible.")
+        st.info("Heatmap temporairement indisponible. Yahoo Finance limite parfois les appels.")
 
-with tabs[4]:
-    st.subheader("🤖 Résumé IA local")
-    close = hist["Close"]
-    ma20 = close.tail(20).mean()
-    ma60 = close.tail(60).mean() if len(close) >= 60 else ma20
-    perf = ((close.iloc[-1] - close.iloc[0]) / close.iloc[0]) * 100
-    volatility = close.pct_change().std() * (252 ** 0.5) * 100
+with tabs[7]:
+    st.subheader("🌐 TradingView intégré")
+    url = f"https://s.tradingview.com/widgetembed/?symbol={tv_symbol(symbol)}&interval=D&theme=dark&style=1&locale=fr"
+    components.iframe(url, height=620, scrolling=True)
 
-    score = 0
-    if price > ma20: score += 1
-    if price > ma60: score += 1
-    if perf > 5: score += 1
-    if volatility < 35: score += 1
-
-    reco = "intéressant à surveiller" if score >= 3 else "neutre / prudent" if score == 2 else "risqué"
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f"""
-### Verdict éducatif : **{reco}**
-
-- Prix actuel : **${price:.2f}**
-- Moyenne 20 jours : **${ma20:.2f}**
-- Moyenne 60 jours : **${ma60:.2f}**
-- Performance 6 mois : **{perf:.2f}%**
-- Volatilité estimée : **{volatility:.2f}%**
-
-⚠️ Ceci n’est pas un conseil financier. Risque de perte en capital.
-""")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with tabs[5]:
+with tabs[8]:
     st.subheader("⭐ Watchlist futuriste")
+
     if "watchlist" not in st.session_state:
         st.session_state.watchlist = []
 
