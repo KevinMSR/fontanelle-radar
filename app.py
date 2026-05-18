@@ -156,13 +156,13 @@ def normalize_query(query):
     if q.endswith("-usd"):
         return q.upper()
 
-    if len(q) <= 8 and q.replace(".", "").replace("-", "").isalnum():
+    if len(q) <= 6 and q.replace(".", "").replace("-", "").isalnum():
         return q.upper()
 
     return None
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def fetch_market_data(symbol):
     data = {
         "symbol": symbol,
@@ -334,7 +334,7 @@ def fetch_market_data(symbol):
 
 
 with st.sidebar:
-    st.markdown('<div class="big-title">Stock Insight</div>', unsafe_allow_html=True)
+    st.markdown('<div class="big-title">Stock<br>Insight</div>', unsafe_allow_html=True)
     st.write("Radar financier cyberpunk sans API payante")
     st.divider()
 
@@ -349,22 +349,32 @@ with st.sidebar:
 
     manual_symbol = st.text_input(
         "Ticker Yahoo Finance",
-        value=detected_symbol or "",
+        value=detected_symbol if detected_symbol else "",
         placeholder="Ex : AAPL, ETH-USD, BTC-USD"
     )
 
     run = st.button("⚡ Analyser", use_container_width=True)
 
-    st.divider()
-    st.caption("Données publiques via Yahoo Finance / yfinance.")
-    st.caption("Certaines données peuvent être indisponibles selon l’actif.")
 
+symbol = detected_symbol
 
-symbol = manual_symbol.strip().upper() if manual_symbol else detected_symbol
+if manual_symbol:
+    manual_clean = manual_symbol.strip()
+
+    manual_detected = normalize_query(manual_clean)
+
+    if manual_detected:
+        symbol = manual_detected
+    else:
+        manual_upper = manual_clean.upper()
+
+        if "-" in manual_upper or len(manual_upper) <= 6:
+            symbol = manual_upper
 
 if not symbol:
     st.warning("Entre une action ou une crypto : Apple, AAPL, Ethereum, ETH, Bitcoin, BTC...")
     st.stop()
+
 
 data = fetch_market_data(symbol)
 
